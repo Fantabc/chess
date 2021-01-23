@@ -1,0 +1,21 @@
+body {
+    background-color: #ffffff;
+}
+
+div:hover {
+    cursor: pointer;
+}
+
+#infos {
+    width: 640px;
+}
+
+.dark {
+    background-image: url("../assets/chess/background.png");
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.light {
+    background-color: #ffffff;
+}
