@@ -1,21 +1,32 @@
 body {
-    background-color: #ffffff;
-}
-
-div:hover {
-    cursor: pointer;
-}
-
-#infos {
-    width: 640px;
-}
-
-.dark {
     background-image: url("../assets/chess/background.png");
     background-repeat: no-repeat;
     background-size: cover;
 }
 
-.light {
-    background-color: #ffffff;
+#board {
+    float: left;
+    position: relative;
+}
+
+#board:hover {
+    cursor: pointer;
+}
+
+.case {
+    display: inline-block;
+    vertical-align: top;
+    background-repeat: no-repeat;
+    background-origin: content-box;
+    background-position: center;
+    height: 100px;
+    width: 100px;
+}
+
+.white {
+    background-color: #fafafa;
+}
+
+.black {
+    background-color: #614f45;
 }
