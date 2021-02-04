@@ -2,13 +2,15 @@
 
 ### Fonctionnalités actuelles :
 * Mouvement des pièces
-* Echecs (à moitié)
+* Echecs / mat / pat
 * Roque
 * Promotion
+* Logs des coups
 
 ### TODO :
-* Echec à revoir (roi prend quand pièce protégée)
 * En passant
+* Affichage graphique
+* Tableau d'informations
 * OP-TI-MI-SEEEER
 
 ### Futures envies :
