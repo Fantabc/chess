@@ -1,24 +1,27 @@
 # Chess
 
-### Fonctionnalités actuelles :
+### Fonctionnalités terminées :
 * Mouvement des pièces
-* Echecs / mat / pat
+* Echecs / pat
 * Roque
 * Promotion
 * Logs des coups
+* Affichage épuré / simpliste
+* Tableau informatif
+* Jeu en ligne (sans promotion)
 
 ### TODO :
-* En passant
-* Affichage graphique
-* Tableau d'informations
-* OP-TI-MI-SEEEER
+* En passant (50% fait)
+* Bot (50% fait)
+* Problème de mat
+* Optimisation
 
-### Futures envies :
-* Joueur vs AI
-* Jeu en ligne
-  * Comptes
-    * Invité
-    * Authentifié
-  * Système de stats
-* Système pour progresser
-* Eventuellement passer en handler avec class
+### Options envisageables :
+* Comptes joueurs
+  * Invité
+  * Authentifié
+* Système de stats
+* Chat lors des parties en ligne
+* Editeur de position
+* Système pour progresser / apprendre
+* (Eventuellement passer en handler avec class)
