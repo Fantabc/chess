@@ -2,10 +2,19 @@ body {
     background-image: url("../assets/chess/background.png");
     background-repeat: no-repeat;
     background-size: cover;
+    margin: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
+label {
+    color: white;
+}
+
+/* Plateau de jeu */
+
 #board {
-    float: left;
     position: relative;
 }
 
@@ -13,14 +22,93 @@ body {
     cursor: pointer;
 }
 
+#player {
+    float: right;
+}
+
+/* Informations sur le côté */
+
+.column {
+    float: left;
+}
+
+#side {
+    background-color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    float: left;
+    height: 80vh;
+    padding: 10px;
+}
+
+.hori {
+    display: flex;
+    flex-direction: row;
+    height: inherit;
+}
+
+.verti {
+    display: flex;
+    flex-direction: column;
+}
+
+.types > input {
+    float: left;
+    width: 50%;
+    height: 5vh;
+}
+
+#infos {
+    display: block;
+    overflow-y: scroll;
+}
+
+.tdp {
+    width: 10vw;
+}
+
+table, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+
+th {
+    padding: 10px;
+}
+
+.divider {
+    width: 10px;
+    height: 10px;
+    float: left;
+}
+
+/* Gérer les parties */
+
+.types {
+    display: flex;
+    flex-direction: row;
+    overflow: auto;
+    padding-bottom: 1px;
+}
+
+.idle {
+    display: block;
+}
+
+.play {
+    display: none;
+}
+
+/* Cases */
+
 .case {
     display: inline-block;
     vertical-align: top;
     background-repeat: no-repeat;
     background-origin: content-box;
     background-position: center;
-    height: 100px;
-    width: 100px;
+    height: 10vh;
+    width: 10vh;
 }
 
 .white {
