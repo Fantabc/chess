@@ -9,13 +9,58 @@
         <link rel="stylesheet" type="text/css" href="../styles/chess.css">
     </head>
 
-    <body class="dark">
-        <div class="main">
+    <body>
+        <div class="verti">
+            <b><label id="opponent">Adversaire en attente...</label></b>
             <div id="board"></div>
-            <div class="infos">Salutations</h1>
+            <b><label id="player">Vous</label></b>
+        </div>
+        <div class="divider"></div>
+        <div id="side">
+            <div class="hori">
+                <table class="column" id="infos">
+                    <tr>
+                        <th>Trait</th>
+                        <th>Blanc</th>
+                        <th>Noir</th>
+                    </tr>
+                </table>
+                <div class="divider"></div>
+                <table class="column" id="pieces">
+                    <tr>
+                        <th id="whiteHeader">Blanc</th>
+                        <td class="tdp" id="white"></td>
+                    </tr>
+                    <tr>
+                        <th id="blackHeader">Noir</th>
+                        <td class="tdp" id="black"></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="divider"></div>
+            <div class="types">
+                <input class="idle" type="submit" value="Partie amicale" onclick="connect(0)" />
+                <input class="idle" type="submit" value="Partie solo" onclick="connect(1)" />
+                <input class="idle" type="submit" value="Partie en ligne" onclick="connect(2)" />
+                <input class="play" type="submit" value="Nulle" onclick="askDraw()" />
+                <input class="play" type="submit" value="Abandonner" onclick="connect(2)" />
+            </div>
         </div>
 
-        <p id="infos"></p>
+        <!-- The core Firebase JS SDK is always required and must be listed first -->
+        <script src="https://www.gstatic.com/firebasejs/8.2.6/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.2.6/firebase-database.js"></script>
+
+        <!-- TODO: Add SDKs for Firebase products that you want to use
+            https://firebase.google.com/docs/web/setup#available-libraries -->
+
+        <script>
+            var firebaseConfig = {
+                // All data
+            };
+            
+            firebase.initializeApp(firebaseConfig);
+        </script>
 
         <script src="../script/chess.js"></script>
     </body>
