@@ -26,4 +26,4 @@
 * Système pour progresser / apprendre
 * (Eventuellement passer en handler avec class)
 
-[Exemple](exemple.png)
+![Exemple](exemple.png)
