@@ -1,15 +1,23 @@
 body {
-    background-image: url("../assets/chess/background.png");
+    background-image: url("../assets/wallpapers/wallpaper.jpg");
     background-repeat: no-repeat;
     background-size: cover;
     margin: 10px;
     display: flex;
     justify-content: center;
     align-items: center;
+	font-family: "Gill Sans", sans-serif
+}
+
+.waiting {
+	filter: blur(10px);
+	-webkit-filter: blur(10px);
+	pointer-events: none;
 }
 
 label {
     color: white;
+	font-size: 20px;
 }
 
 /* Plateau de jeu */
@@ -19,7 +27,7 @@ label {
 }
 
 #board:hover {
-    cursor: pointer;
+    cursor: grab;
 }
 
 #player {
@@ -44,7 +52,7 @@ label {
 .hori {
     display: flex;
     flex-direction: row;
-    height: inherit;
+    height: 100%;
 }
 
 .verti {
@@ -73,7 +81,7 @@ table, th, td {
 }
 
 th {
-    padding: 10px;
+    padding: 15px;
 }
 
 .divider {
@@ -87,8 +95,6 @@ th {
 .types {
     display: flex;
     flex-direction: row;
-    overflow: auto;
-    padding-bottom: 1px;
 }
 
 .idle {
@@ -111,10 +117,29 @@ th {
     width: 10vh;
 }
 
+.dragging {
+	cursor: move !important;
+	cursor: -webkit-grabbing !important;
+	cursor: -moz-grabbing !important;
+	cursor: grabbing !important;
+}
+
 .white {
     background-color: #fafafa;
 }
 
-.black {
-    background-color: #614f45;
+.classic {
+    background-color: #755d4f;
+}
+
+.ocean {
+    background-color: #63688f;
+}
+
+.nature {
+    background-color: #53915e;
+}
+
+.volcan {
+    background-color: #a35a5a;
 }
