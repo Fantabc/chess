@@ -1,19 +1,14 @@
 # Chess
 
 ### Fonctionnalités terminées :
-* Mouvement des pièces
-* Echecs / pat
-* Roque
-* Promotion
-* Logs des coups
-* Affichage épuré / simpliste
-* Tableau informatif
-* Jeu en ligne (sans promotion)
+* Jeu local / amical
+* Jeu en ligne
 
 ### TODO :
-* En passant (50% fait)
-* Bot (50% fait)
-* Problème de mat
+* Bot (Alpha-Beta Pruning)
+* Chat en ligne
+* Nulle et abandon
+* Editeur de positions
 * Optimisation
 
 ### Options envisageables :
@@ -21,9 +16,5 @@
   * Invité
   * Authentifié
 * Système de stats
-* Chat lors des parties en ligne
-* Editeur de position
 * Système pour progresser / apprendre
-* (Eventuellement passer en handler avec class)
-
-![Exemple](exemple.png)
+* (Eventuellement utiliser des class)
