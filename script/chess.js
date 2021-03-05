@@ -5,18 +5,24 @@ const moveColor = "#00b2ff"
 const size = 100
 const x = ["a", "b", "c", "d", "e", "f", "g", "h"]
 const y = ["8", "7", "6", "5", "4", "3", "2", "1"]
+const offPieces = new Array()
 
-let data
+let data = null
 let mode = -1
+let pat = false
+let mat = false
 let ended = false
 let gameReady = false
-let pseudo = "Hugo" // prompt("Choisissez un pseudo :").replace(/[^a-z0-9\ ]/gi, "")
+let lastMoveForward = false
+let pseudo = new String()
 let gameKey = new String()
 let game = new Array()
 let eaten = new Array()
 let pieces = new Array()
+let lastCheck = new Array()
 let logs = new Object()
 let selected = new Object()
+let players = new Object()
 let waitingForValidMove = new Object()
 let scores = {
 	"w": 0,
@@ -30,7 +36,7 @@ let castling = {
 let turns = {
     "w": 1,
     "b": -1,
-    "current": 1,
+    "current": -1,
     "move": 1
 }
 let names = {
@@ -42,7 +48,9 @@ let names = {
     "king": ["roi", "K"]
 }
 
-while (!pseudo || pseudo == new String()) {
+document.body.className = new String()
+
+while (!pseudo || pseudo.length == 0 || pseudo == "Robot") {
 	pseudo = prompt("Vous devez choisir un pseudo valide :")
 }
 
@@ -50,33 +58,70 @@ document.getElementById("player").innerText = pseudo
 
 db.ref().on("value", snapshot => data = snapshot.val())
 
-const waitForOpponent = () => db.ref("games").child(gameKey).child("players").on("value", snapshot => {
-	let val = snapshot.val()
+/**
+ * Changer le thème du plateau
+ * @param {object} select Boîte sélective de thèmes
+ */
+function setTheme(select) {
+	let value = select.value
 
-	if (!val) alert("Erreur")
-
-	for (let key of Object.keys(val)) {
-		if (key != pseudo) {
-			document.getElementById("opponent").innerText = key
-			break
+	for (let element of document.getElementsByClassName("case")) {
+		if (!element.className.includes("white")) {
+			element.className = "case " + value
 		}
 	}
+}
 
-	gameReady = true
-})
+/**
+ * Activer l'écouteur des adversaires
+ */
+function receiveOpponent() {
+	db.ref("games").child(gameKey).child("players").on("value", snapshot => {
+		let val = snapshot.val()
 
-const setListener = () => db.ref("games").child(gameKey).child("moves").on("value", snapshot => {
-	console.log(snapshot.val())
-	if (!snapshot.val()) return;
-	let move = Object.values(snapshot.val())[Object.values(snapshot.val()).length - 1]
-	getData(move["from"], move["to"], move["castle"], move["promotion"])
-})
+		if (!val) alert("Erreur")
+
+		for (let key of Object.keys(val)) {
+			if (key != pseudo) {
+				document.getElementById("opponent").innerText = key
+				players[key] = players["w"] ? "b" : "w"
+				break
+			}
+		}
+
+		gameReady = true
+	})
+}
+
+/**
+ * Activer l'écouteur des mouvements
+ */
+function receiveMoves() {
+	db.ref("games").child(gameKey).child("moves").on("value", snapshot => {
+		if (!snapshot.val()) return;
+		let move = Object.values(snapshot.val())[Object.values(snapshot.val()).length - 1]
+		getData(move["from"], move["to"], move["castle"], move["promotion"], move["enpassant"])
+	})
+}
+
+/**
+ * Activer l'écouteur des actions
+ */
+function receiveActions() {
+	db.ref("games").child(gameKey).child("actions").on("value", snapshot => {
+		console.log(snapshot.val())
+		if (!snapshot.val()) return;
+		let action = Object.values(snapshot.val())[Object.values(snapshot.val()).length - 1]
+
+	})
+}
 
 // Afin d'optimiser, essayer de réduire au maximum les boucles (par exemple, dans le check du setMove, on n'a besoin que des pièces de l'adversaire)
 
 /**
  * Générer un pseudo
  * @param {number=} length Longueur du pseudo
+ * @returns {string} Pseudo généré de façon aléatoire dans tous les sens du terme
  */
 function getPseudo(length = Math.floor(Math.random() * 5 + 5)) {
 	let all = new Array()
@@ -98,7 +143,48 @@ function getPseudo(length = Math.floor(Math.random() * 5 + 5)) {
 		res += next[Math.floor(Math.random() * next.length)]
 	}
 
-	return res.charAt(0) + res.slice(1).toLowerCase()
+	res = res.charAt(0) + res.slice(1).toLowerCase()
+
+	if (res == pseudo) res = getPseudo()
+
+	return res
+}
+
+/**
+ * Réinitialiser toutes les variables
+ */
+function resetAll() {
+	game = getPositionFromPieces(offPieces)
+	pieces = offPieces.map(p => Object.assign({}, p))
+
+	data = null
+	mode = -1
+	pat = false
+	mat = false
+	ended = false
+	gameReady = false
+	lastMoveForward = false
+	gameKey = new String()
+	game = new Array()
+	eaten = new Array()
+	pieces = new Array()
+	lastCheck = new Array()
+	logs = new Object()
+	selected = new Object()
+	players = new Object()
+	waitingForValidMove = new Object()
+	turns["current"] = 1
+
+	scores = {
+		"w": 0,
+		"b": 0
+	}
+
+	castling = {
+		"qside": new Array(),
+		"kside": new Array(),
+		"kings": new Array()
+	}
 }
 
 /**
@@ -107,6 +193,8 @@ function getPseudo(length = Math.floor(Math.random() * 5 + 5)) {
  */
 function connect(type) {
 	if (mode == -1) {
+		clearLogs()
+
 		if (type == 2 && data) {
 			let keys = Object.keys(data["games"])
 
@@ -126,22 +214,35 @@ function connect(type) {
  */
 function startGame(type) {
 	mode = type
-	ended = false
+
+	let color = Math.floor(Math.random() * Math.floor(100)) < 50 ? "white" : "black"
 
 	switch (type) {
 		case 0:
-			init()
-			document.getElementById("opponent").innerText = getPseudo()
+			update("white", true)
+
+			let opponent = getPseudo()
+			document.getElementById("opponent").innerText = opponent
+
+			players[opponent] = "b"
+			players[pseudo] = "w"
 			break
 
 		case 1:
 			document.getElementById("opponent").innerText = "Robot"
+			document.getElementById("nobot").style.display = "none"
+
+			update(color, true)
+
+			players[pseudo] = color
+			players["Robot"] = color == "w" ? "b" : "w"
+
+			if (color == "black") console.log(findMove(2))
 			break
 
 		case 2:
-			let color = Math.floor(Math.random() * Math.floor(100)) < 50 ? "white" : "black"
 			let gameValue = new Object()
-			let players = new Object()
+
 			players[pseudo] = color
 			gameValue["players"] = players
 
@@ -149,11 +250,35 @@ function startGame(type) {
 			gameKey = key
 			db.ref("games").child(key).update(gameValue)
 
-			init(color)
-			waitForOpponent()
-			setListener()
+			update(color, true)
+			receiveOpponent()
+			receiveMoves()
 			break
 	}
+}
+
+/**
+ * Terminer une partie
+ * @param {number} result Type de fin de partie (nul, mat, abandon)
+ */
+function stopGame(result) {
+	if (result == 1 || result == 2) {
+		let winner = Object.keys(players).find(player => turns["current"] != turns[players[player]])
+		alert(winner + " a gagné par " + (result == 1 ? "mat" : "abandon") + " !")
+	} else if (result == 0) {
+		alert("Egalité !")
+	} else throw new Error("Résultat indeterminable : " + result)
+
+	for (let input of document.getElementById("types").childNodes) {
+		if (!input.style) continue
+		if (input.className == "idle") {
+			input.style.display = "block"
+		} else {
+			input.style.display = "none"
+		}
+	}
+
+	resetAll()
 }
 
 /**
@@ -172,8 +297,8 @@ function gotoGame(id) {
 	gameKey = id
 	gameReady = true
 	mode = 2
-	init(color)
-	setListener()
+	update(color, true)
+	receiveMoves()
 }
 
 /**
@@ -182,13 +307,15 @@ function gotoGame(id) {
  * @param {object} to Case incluant color, piece, id
  * @param {boolean} castle Roque effectué ?
  * @param {boolean|string} promotion Pion à promotion
+ * @param {boolean} enpassant Prise en passant
  */
-function sendData(from, to, castle, promotion) {
+function sendData(from, to, castle, promotion, enpassant) {
 	db.ref("games").child(gameKey).child("moves").push().update({
 		"from": from,
 		"to": to,
 		"castle": castle,
-		"promotion": promotion
+		"promotion": promotion,
+		"enpassant": enpassant
 	})
 }
 
@@ -198,8 +325,9 @@ function sendData(from, to, castle, promotion) {
  * @param {number} to Case incluant color, piece, id
  * @param {boolean} castle Roque effectué ?
  * @param {boolean|string} promotion Pion à promotion
+ * @param {boolean} enpassant Prise en passant
  */
-function getData(from, to, castle, promotion) {
+function getData(from, to, castle, promotion, enpassant) {
 	let fromCoords = getCoords(from["id"])
 	let toCoords = getCoords(to["id"])
 
@@ -217,17 +345,18 @@ function getData(from, to, castle, promotion) {
 				id: to["id"]
 			}
 
-			console.log(newPiece)
-			console.log(from, to, castle, promotion)
-
 			if (exist["piece"]) pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == to["id"])), 1)
 
 			pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == from["id"])), 1)
-			console.log(newPiece)
 			pieces.push(newPiece)
 
-			game[toCoords["y"]][toCoords["x"]] = newPiece
+			if (to["id"] == from["id"] + 16 * -turns[from["piece"].charAt(0)] && from["piece"].slice(1) == "pawn") {
+				lastMoveForward = true
+			} else lastMoveForward = false
 
+			if (enpassant) setEnPassant(from, to)
+
+			game[toCoords["y"]][toCoords["x"]] = newPiece
 			game[fromCoords["y"]][fromCoords["x"]] = {
 				color: from["color"],
 				piece: false,
@@ -236,34 +365,52 @@ function getData(from, to, castle, promotion) {
 		}
 	}
 
-	setLogs(from, to, castle, promotion)
+	setLogs(from, to, castle, promotion, enpassant)
 
 	if (from["piece"].charAt(0) == "b") turns["move"]++
 
 	selected = new Object()
-	turns["current"] *= -1
-
 	update()
 }
 
-let gens = new Array()
+/**
+ * Demander la nulle
+ */
+function askDraw() {
+	if (mode == 0) {
+		if (confirm((turns["current"] == 1
+			? pseudo
+			: document.getElementById("opponent").innerText) + " demande la nulle. Accepter ?")) {
+			stopGame(0)
+		} else {
+			alert("Nulle refusée")
+		}
+	}
+}
+
+/**
+ * Abandonner
+ */
+const resign = () => stopGame(2)
 
 /**
  * Trouver un coup
  * @param {number} depth Niveau de recherche
  */
 function findMove(depth) {
-	if (depth > 25) throw new Error("Profondeur trop importante")
+	if (depth > 10) throw new Error("Profondeur trop importante")
 
+	let gens = new Array()
+	let gensPieces = new Array()
 	let contextGame = game.map(r => [...r])
 	let contextPieces = pieces.map(p => Object.assign({}, p))
 	let contextTurn = turns["current"]
-	let contextLast = new Array()
-	let savedGame = game.map(r => [...r])
-	let savedPieces = pieces.map(p => Object.assign({}, p))
 	let positions = new Array()
+	let saved = new Array()
+	let orderedPieces = new Array()
 
 	function localMove(from, to) {
+		console.log(from, to)
 		let fromCoords = getCoords(from["id"])
 		let toCoords = getCoords(to["id"])
 		let newPiece = {
@@ -280,17 +427,9 @@ function findMove(depth) {
 		contextPieces.splice(contextPieces.indexOf(contextPieces.find(e => e["id"] == from["id"])), 1)
 		contextPieces.push(newPiece)
 
-		contextLast[0] = {
-			color: from["color"],
-			piece: false,
-			id: from["id"]
-		}
-		contextLast[1] = newPiece
-
-		contextTurn *= -1
+		update(getPositionFromPieces(contextPieces), false)
+		alert("a")
 	}
-
-	let gens = new Array()
 
 	function* checkPiece() {
 		for (let piece of contextPieces) {
@@ -301,89 +440,123 @@ function findMove(depth) {
 		}
 	}
 
-	function checkMove() {
+	console.log("### Initialisation ###")
+
+	// Initialiser les générateurs
+	for (let i = 0; i < depth * 2; i++) {
 		let iterator = checkPiece()
 		let piece = new Object()
 
 		gens.push(iterator)
+		positions.push(contextPieces.map(p => Object.assign({}, p)))
 
-		while (!iterator.done) {
+		while (typeof move != "number") {
 			let value = iterator.next().value
-			if (typeof value != "number") {
-				piece = value
+
+			if (!value) continue
+
+			if (typeof value == "object") {
+				piece = Object.assign({}, value)
+				orderedPieces.push(piece)
 			} else {
 				let coords = getCoords(value)
 
 				localMove(piece, {
-					color: contextGame[coords["y"]][coords["x"]]["color"],
+					color: contextGame[coords["y"]][coords["y"]]["color"],
 					piece: contextGame[coords["y"]][coords["x"]]["piece"],
 					id: value
 				})
 
-				if (gens.length == depth * 2) {
-					positions.push(contextPieces.map(p => Object.assign({}, p)))
-					let board = getPositionFromPieces(positions[positions.length - 1])
-					game = board
-					pieces = positions[positions.length - 1]
-					update()
-					alert("a")
-					contextTurn *= -1
-					return
-				}
-
-				checkMove()
+				if (i != depth * 2 - 1) contextTurn *= -1
+				break
 			}
 		}
 	}
 
-	checkMove()
+	console.log("### while gens ###")
 
 	while (gens.length != 0) {
 		let iterator = gens[gens.length - 1]
 		let piece = new Object()
 
+		console.log("### Début de générateur ### ")
+
 		for (;;) {
 			let value = iterator.next().value
 
-			if (!value) break
-
-			console.log("============")
-
-			localMove(contextLast[1], contextLast[0])
-			console.log(contextLast[1], contextLast[0])
-
-			if (typeof value != "number") {
-				piece = value
+			if (!value || (typeof value != "object" && Object.keys(piece).length == 0)) {
+				gens.pop()
+				positions.pop()
+				contextTurn *= -1
+				break
 			} else {
-				let coords = getCoords(value)
+				if (typeof value == "object") {
+					piece = Object.assign({}, value)
+				} else {
+					let coords = getCoords(value)
 
-				localMove(piece, {
-					color: contextGame[coords["y"]][coords["x"]]["color"],
-					piece: contextGame[coords["y"]][coords["x"]]["piece"],
-					id: value
-				})
+					localMove(piece, {
+						color: contextGame[coords["y"]][coords["x"]]["color"],
+						piece: contextGame[coords["y"]][coords["x"]]["piece"],
+						id: value
+					})
 
-				if (gens.length == depth * 2) {
-					positions.push(contextPieces.map(p => Object.assign({}, p)))
-					let board = getPositionFromPieces(positions[positions.length - 1])
-					game = board
-					pieces = positions[positions.length - 1]
-					update()
-					alert("a")
-					contextTurn *= -1
+					saved.push(contextPieces.map(p => Object.assign({}, p)))
+
+					contextPieces = positions[positions.length - 1].map(p => Object.assign({}, p))
+					contextGame = getPositionFromPieces(contextPieces)
 				}
 			}
 		}
 
-		gens.pop()
+		console.log("### Fin de générateur ###")
+
+		if (gens.length == 0) {
+			break
+		} else {
+			iterator = gens[gens.length - 1]
+
+			for (;;) {
+				let value = iterator.next().value
+
+				if (!value) {
+					break
+				} else {
+					if (typeof value == "number") {
+						if (Object.keys(piece).length == 0) piece = orderedPieces.pop()
+
+						let coords = getCoords(value)
+
+						localMove(piece, {
+							color: contextGame[coords["y"]][coords["y"]]["color"],
+							piece: contextGame[coords["y"]][coords["x"]]["piece"],
+							id: value
+						})
+
+						let current = contextPieces.map(p => Object.assign({}, p))
+						saved.push(current)
+						positions[positions.length - 1] = current
+
+						contextTurn *= -1
+						gens.push(checkPiece())
+						break
+					} else {
+						piece = Object.assign({}, value)
+					}
+				}
+			}
+		}
+
+		console.log(saved)
 	}
+
+	update(getPositionFromPieces(contextPieces), false)
 }
 
 /**
  * Initialiser le terrain
- * @param {string=} side Affichage côté noir ou blanc
  */
-function init(side = "white") {
+function init() {
 	let id = 0
 
 	for (let i = 0; i < 8; i++) {
@@ -391,8 +564,9 @@ function init(side = "white") {
 
 		for (let j = 0 + i % 2; j < 8 + i % 2; j++) {
 			let pushed = {
-				// color: (j % 2 == 0 ? "fafafa" : "564439"),
-				color: (j % 2 == 0 ? "#fafafa" : "#614f45"),
+				color: (j % 2 == 0 ? "#fafafa" : "#755d4f"),
+				// color: (j % 2 == 0 ? "#fafafa" : "#564439")
+				// color: (j % 2 == 0 ? "#fafafa" : "#614f45"),
 				piece: false,
 				id: id
 			}
@@ -485,19 +659,12 @@ function init(side = "white") {
 
 			let cell = document.createElement("div")
 			cell.id = pushed["id"]
-			cell.className = "case " + (pushed["color"] == "#fafafa" ? "white" : "black")
-			cell.ondrop = e => dropped(e)
+			cell.className = "case " + (pushed["color"] == "#fafafa" ? "white" : "classic")
+			cell.ondrop = e => onDrop(e)
 			cell.ondragover = e => onDragOver(e)
 			cell.ondragstart = e => onDragStart(e)
-			cell.onclick = () => clicked(pushed["id"])
-
-			if (pushed["piece"] && turns["current"] == turns[pushed["piece"].charAt(0)]) cell.draggable = "true"
-
-			/*pushed["piece"]
-				? cell.style.background = "url(\"../assets/chess/" + pushed["piece"] + ".png\"), " + pushed["color"] + ";"
-				: cell.style.backgroundColor = pushed["color"]*/
-
-			if (side == "black") cell.style.transform = "scaleY(-1) scaleX(-1)"
+			cell.onclick = () => onClicked(pushed["id"])
+			cell.draggable = false
 
 			document.getElementById("board").appendChild(cell)
 
@@ -510,7 +677,7 @@ function init(side = "white") {
 	for (let line of game) for (let p of line) if (p["piece"]) {
 		let piece = p["piece"].slice(1)
 
-		pieces.push(p)
+		offPieces.push(Object.assign({}, p))
 
 		if (piece == "rook" || piece == "king") {
 			if (line.indexOf(p) == 0) {
@@ -521,18 +688,12 @@ function init(side = "white") {
 		}
 	}
 
-	if (side == "black") {
-		document.getElementById("board").style.transform = "scaleY(-1) scaleX(-1)"
-	}
+	pieces = offPieces.map(p => Object.assign({}, p))
 
-	for (let input of document.getElementsByClassName("idle")) input.style.display = "none"
-	for (let input of document.getElementsByClassName("play")) input.style.display = "block"
-
-	// Fonction à appeler lorsqu'on choisit un mode de jeu
 	update()
-
-	// findMove(2)
 }
+
+init()
 
 /**
  * Initialiser un terrain selon une position donnée
@@ -564,26 +725,45 @@ function getPositionFromPieces(all) {
 
 /**
  * Mettre à jour le terrain
- * @param {array=} context Terrain
+ * @param {string=} side Définir un sens à mettre à jour
+ * @param {boolean=} init Initialiser un terrain ou non
  */
-function update(context = game) {
-	for (let y in context) {
-		for (let x in context[y]) {
-			document.getElementById(context[y][x].id.toString()).style.backgroundImage = (context[y][x].piece ? "url('../assets/chess/" + context[y][x].piece + ".png')" : null)
+function update(side = "white", init = false) {
+	if (!init) {
+		turns["current"] *= -1
+	} else {
+		for (let input of document.getElementsByClassName("idle")) input.style.display = "none"
+		for (let input of document.getElementsByClassName("play")) input.style.display = "block"
+	}
 
-			if (context[y][x]["piece"] && turns["current"] == turns[context[y][x]["piece"].charAt(0)]) {
+	for (let y in game) {
+		for (let x in game[y]) {
+			document.getElementById(game[y][x]["id"].toString()).style.backgroundImage = (game[y][x]["piece"] ? "url('../assets/chess/" + game[y][x]["piece"] + ".png')" : null)
+
+			if (game[y][x]["piece"] && turns["current"] == turns[game[y][x]["piece"].charAt(0)]) {
 				if (mode == 0 || (mode == 2
-					&& data["games"][gameKey]["players"][pseudo].charAt(0) == context[y][x]["piece"].charAt(0))) {
-						document.getElementById(context[y][x]["id"]).draggable = true
+					&& data["games"][gameKey]["players"][pseudo].charAt(0) == game[y][x]["piece"].charAt(0))) {
+						document.getElementById(game[y][x]["id"]).draggable = true
 					}
 			} else {
-				document.getElementById(context[y][x]["id"]).draggable = false
+				document.getElementById(game[y][x]["id"]).draggable = false
 			}
+
+			if (side == "black" || side == "b") document.getElementById(game[y][x]["id"]).style.transform = "scaleY(-1) scaleX(-1)"
 		}
 	}
 
 	hideMoves()
-	isCheck()
+
+	if (!init) {
+		if (pat) {
+			stopGame(0)
+		} else if (mat) {
+			stopGame(1)
+		}
+	}
+
+	if (side == "black" || side == "b") document.getElementById("board").style.transform = "scaleY(-1) scaleX(-1)"
 }
 
 /**
@@ -596,15 +776,11 @@ const cleanPieces = () => pieces = Array.from(new Set(pieces))
  * @param {number} id ID de la case cliquée
  * @param {boolean=} dropped Afficher l'animation du mouvement
  */
-async function clicked(id, dropped = false) {
+function onClicked(id, dropped = false) {
 	let coords = getCoords(id)
 	let cell = game[coords["y"]][coords["x"]]
-	let previous = Object.assign({}, selected)
-	let nextious = Object.assign({}, cell)
 
-	console.log("Cliqué :", cell)
-
-	if (ended || (mode == 2 && !gameReady)) return;
+	if (mode == -1 || ended || (mode == 2 && !gameReady)) return;
 
 	if (cell["piece"]) {
 		if ((mode == 2
@@ -612,34 +788,35 @@ async function clicked(id, dropped = false) {
 			&& data["games"][gameKey]["players"][pseudo].charAt(0) != cell["piece"].charAt(0))) return;
 	}
 
+	let previous = Object.assign({}, selected)
+	let nextious = Object.assign({}, cell)
+
 	if (Object.keys(selected) != 0 && selected != cell && selected["piece"] && selected["piece"].slice(1) == "king" && cell["piece"] && castle(selected).includes(cell["id"])) {
 		setCastling(selected, cell)
 
 		if (mode == 2) {
-			sendData(previous, nextious, true, false)
+			sendData(previous, nextious, true, false, false)
 		} else {
 			setLogs(previous, nextious, true)
 
 			if (previous["piece"].charAt(0) == "b") turns["move"]++
 
 			selected = new Object()
-			turns["current"] *= -1
 
 			update()
 		}
-	} else if (selected != cell && cell["piece"] != false && turns[cell["piece"].charAt(0)] == turns["current"]) {
-		selected = cell
+	} else if (selected["id"] != cell["id"] && cell["piece"] != false && turns[cell["piece"].charAt(0)] == turns["current"] && !dropped) {
+		selected = Object.assign({}, cell)
 		hideMoves()
 		showMoves(cell)
 	} else if (Object.keys(selected).length != 0 && getMoves(selected).some(e => e == cell["id"])) {
 		setMove(previous, nextious).then(res => {
 			if (mode == 2) {
-				sendData(previous, nextious, false, res)
+				sendData(previous, nextious, false, (typeof res == "string" ? res : false), (typeof res == "boolean" ? res : false))
 			} else {
 				if (previous["piece"].charAt(0) == "b") turns["move"]++
 
 				selected = new Object()
-				turns["current"] *= -1
 
 				update()
 			}
@@ -655,7 +832,11 @@ async function clicked(id, dropped = false) {
 
 			pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == waitingForValidMove["id"])), 1)
 			pieces.push(previous)
+
+			document.getElementById(selected["id"]).style.backgroundImage = "url('../assets/chess/" + selected["piece"] + ".png')"
 		})
+	} else {
+		document.getElementById(selected["id"]).style.backgroundImage = "url('../assets/chess/" + selected["piece"] + ".png')"
 	}
 }
 
@@ -663,9 +844,12 @@ async function clicked(id, dropped = false) {
  * Jouer un pion droppé
  * @param {object} event Evenement généré lorsqu'un pion est droppé
  */
-function dropped(event) {
+function onDrop(event) {
 	event.preventDefault()
-	clicked(event.target.id, true)
+
+	if (event.target.id == selected["id"]) {
+		document.getElementById(selected["id"]).style.backgroundImage = "url('../assets/chess/" + selected["piece"] + ".png')"
+	} else onClicked(event.target.id, true)
 }
 
 /**
@@ -674,6 +858,7 @@ function dropped(event) {
  */
 function onDragOver(event) {
 	event.preventDefault()
+	event.dataTransfer.dropEffect = "move"
 }
 
 /**
@@ -681,11 +866,14 @@ function onDragOver(event) {
  * @param {object} event Evenement généré lorsqu'un pion est draggé
  */
 function onDragStart(event) {
+	if (mode == -1) return false;
 	let piece = pieces.find(e => e["id"] == event.target.id)
 
 	selected = piece
 	hideMoves()
 	showMoves(selected)
+
+	document.getElementById(selected["id"]).style.backgroundImage = "none"
 
 	let image = new Image()
 	image.src = "../assets/chess/" + piece["piece"] + ".png"
@@ -784,13 +972,12 @@ function getMoves(cell, castlingCheck = true, context = false) {
 			let row = Math.floor(cell["id"] / game.length)
 			let pawnCells = [getCell(cell["id"], direction, 1), getCell(cell["id"], direction, -1)]
 			let forwardCell = getCell(cell["id"], direction, 0)
+			let coords = getCoords(cell["id"])
+			let lastLogsArray = logs[Object.keys(logs)[Object.keys(logs).length - 1]]
 
 			for (let ccell of pawnCells) if (ccell) {
-				let coords = getCoords(ccell["id"])
-
-				if (ccell && ccell["piece"]
-					&& ccell["piece"].charAt(0) != cell["piece"].charAt(0)
-					&& Math.abs(coords["y"] - row) == 1) res.push(ccell["id"])
+				let ccords = getCoords(ccell["id"])
+				if (ccell["piece"] && ccell["piece"].charAt(0) != cell["piece"].charAt(0) && Math.abs(ccords["x"] - coords["x"]) == 1 && Math.abs(ccords["y"] - coords["y"]) == 1) res.push(ccell["id"])
 			}
 
 			if (forwardCell && !forwardCell["piece"]) res.push(forwardCell["id"])
@@ -806,6 +993,19 @@ function getMoves(cell, castlingCheck = true, context = false) {
 
 				if (row - leftCoords["x"] == 1) res.push(cell["id"] + 8 * direction - 1)
 				if (rightCoords["x"] - row == 1) res.push(cell["id"] + 8 * direction + 1)
+			}
+
+			if (lastLogsArray && lastLogsArray.length != 0) {
+				let lastLog = lastLogsArray[lastLogsArray.length - 1]
+
+				if (lastLog.charAt(1) == y[coords["y"]] && Math.abs(x.indexOf(lastLog.charAt(0)) - x.indexOf(x[coords["x"]])) == 1 && lastLog.length == 2 && lastMoveForward) {
+					let enpassant = game[coords["y"] + turns[cell["piece"].charAt(0)] * -1][x.indexOf(lastLog.charAt(0))]
+					let epcoords = getCoords(enpassant["id"])
+
+					if (Math.abs(coords["x"] - epcoords["x"]) == 1) {
+						res.push(enpassant["id"])
+					}
+				}
 			}
 
 			break
@@ -851,7 +1051,16 @@ function getMoves(cell, castlingCheck = true, context = false) {
 				getCell(cell["id"], -1, 1), getCell(cell["id"], 1, -1)
 			]
 
-			for (let gcell of cells) if (gcell && (!gcell["piece"] || gcell["piece"].charAt(0) != cell["piece"].charAt(0))) res.push(gcell["id"])
+			for (let gcell of cells) {
+				if (gcell && (!gcell["piece"] || gcell["piece"].charAt(0) != cell["piece"].charAt(0))) {
+					let coords = getCoords(cell["id"])
+					let gCoords = getCoords(gcell["id"])
+
+					if (Math.abs(coords["y"] - gCoords["y"]) <= 1 && Math.abs(coords["x"] - gCoords["x"]) <= 1) {
+						res.push(gcell["id"])
+					}
+				}
+			}
 
 			if (castlingCheck && !isCheck().some(e => e["piece"] == cell["piece"].charAt(0) + "king")) res.push(...castle(cell))
 
@@ -960,8 +1169,15 @@ function diagMoves(cell) {
 	return res
 }
 
-// TODO: En passant
-// Utiliser les logs des mouvements
+/**
+ * Retire les mouvements illégaux
+ * @param {object} cell Case contenant color, piece, id
+ */
+function removeMoves(cell, moves) {
+	for (let move of moves) {
+		// Ignorer
+	}
+}
 
 /**
  * Récupérer les cases des roques disponibles
@@ -1050,8 +1266,6 @@ function setCastling(from, to) {
 
 	pieces.push(game[kingCoords["y"]][newKing])
 	pieces.push(game[rookCoords["y"]][newRook])
-
-	console.log(JSON.stringify(pieces, null, 4))
 }
 
 /**
@@ -1071,7 +1285,13 @@ function setPromotion(cell) {
 			let newPiece = cell["piece"].charAt(0) + Object.keys(names).find(e => names[e][0] == pro)
 
 			game[coords["y"]][coords["x"]]["piece"] = newPiece
-			pieces[pieces.indexOf(pieces.find(e => e["id"] == cell["id"]))]["piece"] = newPiece
+
+			pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == cell["id"])))
+			pieces.push({
+				color: cell["color"],
+				piece: newPiece,
+				id: cell["id"]
+			})
 
 			return resolve(newPiece)
 		}
@@ -1084,19 +1304,10 @@ function setPromotion(cell) {
  * @param {object} to Case incluant color, piece, id
  */
 function setEnPassant(from, to) {
-	let direction = turns[from["piece"].charAt(0)] * -1
-	let fromCoords = getCoords(from["id"])
-	let toCoords = getCoords(to["id"])
-	let cell = getCell(to["id"], direction * -1, 0)
-
-	if (to["piece"]
-		|| !cell["piece"]
-		|| cell["piece"].slice(1) != "pawn"
-		|| from["piece"].slice(1) != "pawn") return
-
-	eat(game[toCoords["y"] + direction * -1][toCoords["x"]]["piece"])
-	game[toCoords["y"] + direction * -1][toCoords["x"]]["piece"] = false
-
+	let ptd = Object.assign({}, pieces.find(p => p["id"] == getCell(to["id"], turns[from["piece"].charAt(0)], 0)["id"]))
+	let coords = getCoords(ptd["id"])
+	game[coords["y"]][coords["x"]]["piece"] = false
+	eat(ptd)
 }
 
 /**
@@ -1117,6 +1328,17 @@ function setMove(from, to) {
 		let fromCoords = getCoords(from["id"])
 		let savedFrom = Object.assign({}, from)
 		let savedTo = Object.assign({}, to)
+		let enpassant = false
+		let lastLogsArray = logs[Object.keys(logs)[Object.keys(logs).length - 1]]
+
+		if (lastLogsArray && lastLogsArray.length != 0) {
+			let lastLog = lastLogsArray[lastLogsArray.length - 1]
+
+			if (lastLog.charAt(lastLog.length - 1) == y[fromCoords["y"]] && from["piece"].slice(1) == "pawn" && game[coords["y"] + turns[from["piece"].charAt(0)]][coords["x"]]["piece"].slice(1) == "pawn" && x.indexOf(lastLog.charAt(0)) - x.indexOf(x[coords["x"]]) == 0) {
+				setEnPassant(from, to)
+				enpassant = true
+			}
+		}
 
 		waitingForValidMove = Object.assign({}, game[coords["y"]][coords["x"]])
 		game[coords["y"]][coords["x"]]["piece"] = from["piece"]
@@ -1132,7 +1354,7 @@ function setMove(from, to) {
 		} else {
 			if (waitingForValidMove["piece"]) eat(waitingForValidMove)
 
-			if (from["piece"].slice(1) == "pawn" && ((Math.floor(to["id"] / game.length) == 0 && from["piece"].charAt(0) == "w") || (Math.floor(to["id"] / game.length == 7) && from["piece"].charAt(0) == "b"))) {
+			if (from["piece"].slice(1) == "pawn" && ((Math.floor(to["id"] / game.length) == 0 && from["piece"].charAt(0) == "w") || (Math.floor(to["id"] / game.length) == 7 && from["piece"].charAt(0) == "b"))) {
 				setPromotion(projected).then(res => {
 					if (mode != 2) setLogs(savedFrom, savedTo, false, res.slice(1))
 					game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
@@ -1142,6 +1364,10 @@ function setMove(from, to) {
 					return reject(false)
 				})
 			} else {
+				if (to["id"] == from["id"] + 16 * -turns[from["piece"].charAt(0)] && from["piece"].slice(1) == "pawn") {
+					lastMoveForward = true
+				} else lastMoveForward = false
+
 				game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
 
 				for (let type in castling) {
@@ -1151,12 +1377,25 @@ function setMove(from, to) {
 					}
 				}
 
-				if (mode != 2) setLogs(from, to)
+				if (mode != 2) setLogs(from, to, false, false, enpassant)
 
-				return resolve(false)
+				return resolve(enpassant)
 			}
 		}
 	})
+}
+
+/**
+ * Fonction génératerice de pièces et de leurs mouvements
+ * @param {boolean|string=} color Ne générer que les pièces de la couleur
+ */
+function* getPiecesMovements(color = false) {
+	for (let piece of pieces) {
+		if (color ? piece["piece"].charAt(0) == color : true) {
+			yield piece
+			yield* getMoves(piece, null, true)
+		}
+	}
 }
 
 /**
@@ -1168,17 +1407,22 @@ function setMove(from, to) {
 function isCheck(newMove = false, from = false) {
 	let check = new Set()
 	let by = new Array()
-	let context = [...pieces]
+	let context = pieces.map(p => Object.assign({}, p))
 
 	if (newMove) {
 		let coords = getCoords(newMove["id"])
-		if (game[coords["y"]][coords["x"]]["piece"]) context.splice(context.indexOf(context.find(e => e["id"] == newMove["id"])), 1)
-		context.push(newMove)
+		let fromCoords = getCoords(from["id"])
+
+		if (game[coords["y"]][coords["x"]]["piece"]) pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == newMove["id"])), 1)
+		pieces.push(newMove)
+
+		game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
+		game[coords["y"]][coords["x"]]["piece"] = newMove["piece"]
 	}
 
-	for (let piece of context) if (piece["piece"]) {
+	for (let piece of pieces) if (piece["piece"]) {
 		for (let e of getMoves(piece, false, true)) {
-			let getPiece = context.find(p => p["id"] == e)
+			let getPiece = pieces.find(p => p["id"] == e)
 
 			if (getPiece && getPiece["piece"] == (piece["piece"].charAt(0) == "w" ? "b" : "w") + "king") {
 				check.add(getPiece)
@@ -1187,6 +1431,8 @@ function isCheck(newMove = false, from = false) {
 		}
 	}
 
+	pieces = context.map(p => Object.assign({}, p))
+	game = getPositionFromPieces(pieces)
 	check = Array.from(check)
 
 	if (!newMove) {
@@ -1195,134 +1441,56 @@ function isCheck(newMove = false, from = false) {
 			"b": new Array()
 		}
 
-		for (let piece of pieces) {
-			allMoves[piece["piece"].charAt(0)].push(...getMoves(piece, false, true))
-		}
+		for (let piece of pieces) allMoves[piece["piece"].charAt(0)].push(...getMoves(piece, false, true))
 
-		let color = Object.keys(turns).find(k => turns[k] == turns["current"])
+		let color = Object.keys(turns).find(k => turns[k] != turns["current"])
+		let colorCheck = check.find(k => k["piece"].charAt(0) == color)
 
-		if (!check.some(e => e["piece"] == color + "king")) {
-			let pat = true
+		if (allMoves[color].length == 0 && !colorCheck) {
+			return 0
+		} else if (allMoves[color].length == 0 && colorCheck) {
+			return 1
+		} else {
+			let matCheck = true, patCheck = true
+			let iterator = getPiecesMovements(color)
+			let piece = new Object()
 
-			for (let piece of pieces) {
-				let cellPiece = piece["piece"]
-				if (piece["piece"].charAt(0) == color) {
-					getMoves(piece, false, false).some(m => {
-						let exist = Object.assign({}, pieces.find(e => e["id"] == m))
-						let coords = getCoords(m)
-						let fromCoords = getCoords(piece["id"])
+			for (;;) {
+				let value = iterator.next().value
 
-						let projected = {
-							color: game[coords["y"]][coords["x"]]["color"],
-							piece: piece["piece"],
-							id: m
-						}
+				if (!value) break
 
-						// La case initiale de celle où on veut effectuer le mouvement
-						toReplace = game[coords["y"]][coords["x"]]["piece"]
+				if (typeof value == "object") {
+					piece = value
+				} else {
+					let pieceCoords = getCoords(piece["id"])
+					if (!game[pieceCoords["y"]][pieceCoords["x"]]["piece"]) continue
 
-						// Editer la case de départ et d'arrivée
-						game[coords["y"]][coords["x"]]["piece"] = piece["piece"]
-						game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
+					let coords = getCoords(value)
 
-						if (Object.keys(exist).length != 0) {
-							pieces[pieces.indexOf(pieces.find(e => e["id"] == exist["id"]))] = piece
-						} else {
-							pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == piece["id"])), 1)
-							pieces.push(projected)
-						}
+					let test = isCheck({
+						color: game[coords["y"]][coords["x"]]["color"],
+						piece: piece["piece"],
+						id: value
+					}, piece)
 
-						let checkSave = isCheck(projected, piece)
+					let checkEnemy = check.find(k => k["piece"].charAt(0) == color)
+					let enemy = test.find(k => k["piece"].charAt(0) == color)
 
-						// Remettre les cases à leur état initial
-						game[coords["y"]][coords["x"]]["piece"] = toReplace
-						game[fromCoords["y"]][fromCoords["x"]]["piece"] = cellPiece
+					if (test.length == 0) {
+						matCheck = false
+						patCheck = false
+						break
+					}
 
-						if (Object.keys(exist).length != 0) {
-							pieces.push(exist)
-						} else {
-							pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == m)), 1)
-							pieces.push(piece)
-						}
-
-						cleanPieces()
-
-						if (!checkSave.some(e => e["piece"] == color + "king")) {
-							pat = false
-							return true
-						}
-					})
-
-					if (!pat) break
+					if (patCheck && checkEnemy && Object.keys(checkEnemy).length != 0 && (!enemy || Object.keys(enemy).length != 0)) patCheck = false
+					if (matCheck && (!enemy || Object.keys(enemy).length == 0)) matCheck = false
+					if (!patCheck && !matCheck) break
 				}
 			}
 
-			if (pat) {
-				alert("Pat")
-				ended = true
-				return 0
-			}
-		} else if (check.length != 0 && check.some(e => e["piece"] == color + "king")) {
-			let mat = true
-
-			for (let piece of pieces) {
-				let cellPiece = piece["piece"]
-				if (piece["piece"].charAt(0) == color) {
-					getMoves(piece, false, false).some(m => {
-						let exist = Object.assign({}, pieces.find(e => e["id"] == m))
-						let coords = getCoords(m)
-						let fromCoords = getCoords(piece["id"])
-
-						let projected = {
-							color: game[coords["y"]][coords["x"]]["color"],
-							piece: piece["piece"],
-							id: m
-						}
-
-						// La case initiale de celle où on veut effectuer le mouvement
-						toReplace = game[coords["y"]][coords["x"]]["piece"]
-
-						// Editer la case de départ et d'arrivée
-						game[coords["y"]][coords["x"]]["piece"] = piece["piece"]
-						game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
-
-						if (Object.keys(exist).length != 0) {
-							pieces[pieces.indexOf(pieces.find(e => e["id"] == m))] = projected
-						} else {
-							pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == piece["id"])), 1)
-							pieces.push(projected)
-						}
-
-						let checkSave = isCheck(projected, piece)
-
-						// Remettre les cases à leur état initial
-						game[coords["y"]][coords["x"]]["piece"] = toReplace
-						game[fromCoords["y"]][fromCoords["x"]]["piece"] = cellPiece
-
-						if (Object.keys(exist).length != 0) {
-							pieces[pieces.indexOf(pieces.find(e => e["id"] == m))] = exist
-						} else {
-							pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == m)), 1)
-							pieces.push(piece)
-						}
-
-						cleanPieces()
-
-						if (!checkSave.some(e => e["piece"] == color + "king")) {
-							mat = false
-							return true
-						}
-					})
-
-					if (!mat) break
-				}
-			}
-
-			if (mat) {
-				alert("Mat")
-				ended = true
-				return 1
-			}
+			if (patCheck) return 0
+			if (matCheck) return 1
 		}
 	}
 
@@ -1393,9 +1561,10 @@ function updatePoints() {
  * @param {object} to Case incluant color, piece, id
  * @param {boolean=} castle Roque effectué
  * @param {boolean|string=} promotion Pion à promotion
+ * @param {boolean=} enpassant Prise en passant
  * @returns {string} Notation anglaise
  */
-function log(from, to, castle = false, promotion = false) {
+function log(from, to, castle = false, promotion = false, enpassant = false) {
 	let res = new String()
 
 	if (castle) {
@@ -1405,15 +1574,17 @@ function log(from, to, castle = false, promotion = false) {
 			return "O-O-O"
 		}
 	} else {
+		if (enpassant) {
+			res += "e.p. "
+			to["piece"] = (from["piece"].charAt(0) == "w" ? "b" : "w") + "pawn"
+		}
+
 		res += names[from["piece"].slice(1)][1]
 
 		for (let piece of pieces) {
 			if (piece["piece"] == from["piece"] && piece["id"] != from["id"]) {
 				let coords = getCoords(to["id"])
-
 				let moves = getMoves(piece, false, false)
-
-				game[coords["y"]][coords["x"]]["piece"] = piece["piece"]
 
 				if (moves.includes(to["id"])) res += x[from["id"] % game.length]
 				break
@@ -1431,10 +1602,19 @@ function log(from, to, castle = false, promotion = false) {
 
 		let check = isCheck()
 
-		if (typeof check == "number" && check == 1) {
-			res += "#"
-		} else if (check.length != 0) {
-			res += "+"
+		if (typeof check == "number") {
+			if (check == 0) {
+				pat = true
+				return res
+			} else if (check == 1) {
+				res += "#"
+				mat = true
+				return res
+			}
+		} else {
+			if (check.length != 0) {
+				res += "+"
+			}
 		}
 	}
 
@@ -1447,13 +1627,14 @@ function log(from, to, castle = false, promotion = false) {
  * @param {object} to Case incluant color, piece, id
  * @param {boolean=} castle Roque effectué
  * @param {boolean|string=} promotion Pion à promotion
+ * @param {boolean=} enpassant Prise en passant
  */
-function setLogs(from, to, castle = false, promotion = false) {
+function setLogs(from, to, castle = false, promotion = false, enpassant = false) {
 	if (!logs[turns["move"]]) {
 		logs[turns["move"]] = new Array()
 	}
 
-	let logged = log(from, to, castle, promotion)
+	let logged = log(from, to, castle, promotion, enpassant)
 	let infos = document.getElementById("infos")
 
 	logs[turns["move"]].push(logged)
@@ -1463,6 +1644,7 @@ function setLogs(from, to, castle = false, promotion = false) {
 	if (!turn) {
 		turn = document.createElement("tr")
 		turn.id = turns["move"] + "_"
+		turn.className = "logrow"
 
 		let moveUI = document.createElement("td")
 		moveUI.innerText = turns["move"] + "."
@@ -1477,6 +1659,14 @@ function setLogs(from, to, castle = false, promotion = false) {
 	turn.appendChild(row)
 
 	infos.scrollTop = infos.scrollHeight
+}
+
+/**
+ * Purger les logs
+ */
+function clearLogs() {
+	let table = document.getElementById("infos")
+	document.querySelectorAll(".logrow").forEach(r => table.removeChild(r))
 }
 
 /*
