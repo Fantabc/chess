@@ -9,7 +9,7 @@
         <link rel="stylesheet" type="text/css" href="../styles/chess.css">
     </head>
 
-    <body>
+    <body class="waiting">
         <div class="verti">
             <b><label id="opponent">Adversaire en attente...</label></b>
             <div id="board"></div>
@@ -26,24 +26,33 @@
                     </tr>
                 </table>
                 <div class="divider"></div>
-                <table class="column" id="pieces">
-                    <tr>
-                        <th id="whiteHeader">Blanc</th>
-                        <td class="tdp" id="white"></td>
-                    </tr>
-                    <tr>
-                        <th id="blackHeader">Noir</th>
-                        <td class="tdp" id="black"></td>
-                    </tr>
-                </table>
+                <div class="verti">
+                    <table class="column" id="pieces">
+                        <tr>
+                            <th id="whiteHeader">Blanc</th>
+                            <td class="tdp" id="white"></td>
+                        </tr>
+                        <tr>
+                            <th id="blackHeader">Noir</th>
+                            <td class="tdp" id="black"></td>
+                        </tr>
+                    </table>
+                    <div class="divider"></div>
+                    <select id="themes" onchange="setTheme(this)">
+                        <option value="classic" selected>Classique</option>
+                        <option value="ocean">Océan</option>
+                        <option value="nature">Nature</option>
+                        <option value="volcan">Volcan</option>
+                    </select>
+                </div>
             </div>
             <div class="divider"></div>
-            <div class="types">
+            <div id="types" class="types">
                 <input class="idle" type="submit" value="Partie amicale" onclick="connect(0)" />
                 <input class="idle" type="submit" value="Partie solo" onclick="connect(1)" />
                 <input class="idle" type="submit" value="Partie en ligne" onclick="connect(2)" />
-                <input class="play" type="submit" value="Nulle" onclick="askDraw()" />
-                <input class="play" type="submit" value="Abandonner" onclick="connect(2)" />
+                <input class="play" id="nobot" type="submit" value="Nulle" onclick="askDraw()" />
+                <input class="play" type="submit" value="Abandonner" onclick="resign()" />
             </div>
         </div>
 
@@ -56,9 +65,9 @@
 
         <script>
             var firebaseConfig = {
-                // All data
+                // Keys
             };
-            
+
             firebase.initializeApp(firebaseConfig);
         </script>
 
