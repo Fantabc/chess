@@ -5,9 +5,9 @@ const moveColor = "#00b2ff"
 const size = 100
 const x = ["a", "b", "c", "d", "e", "f", "g", "h"]
 const y = ["8", "7", "6", "5", "4", "3", "2", "1"]
+const askDrawMessage = " demande la nulle. Accepter ?"
 const offPieces = new Array()
 
-let data = null
 let mode = -1
 let pat = false
 let mat = false
@@ -19,7 +19,7 @@ let gameKey = new String()
 let game = new Array()
 let eaten = new Array()
 let pieces = new Array()
-let lastCheck = new Array()
+let lastMoves = new Array()
 let logs = new Object()
 let selected = new Object()
 let players = new Object()
@@ -56,8 +56,6 @@ while (!pseudo || pseudo.length == 0 || pseudo == "Robot") {
 
 document.getElementById("player").innerText = pseudo
 
-db.ref().on("value", snapshot => data = snapshot.val())
-
 /**
  * Changer le thème du plateau
  * @param {object} select Boîte sélective de thèmes
@@ -77,19 +75,16 @@ function setTheme(select) {
  */
 function receiveOpponent() {
 	db.ref("games").child(gameKey).child("players").on("value", snapshot => {
-		let val = snapshot.val()
+		if (!snapshot.val()) alert("Erreur")
 
-		if (!val) alert("Erreur")
+		players = snapshot.val()
 
-		for (let key of Object.keys(val)) {
-			if (key != pseudo) {
-				document.getElementById("opponent").innerText = key
-				players[key] = players["w"] ? "b" : "w"
-				break
-			}
+		if (Object.keys(players).length == 2) {
+			document.getElementById("opponent").innerText = Object.keys(players)[Object.keys(players).indexOf(pseudo) * -1 + 1]
+			gameReady = true
+			update(players[pseudo], true)
+			db.ref("games").child(gameKey).child("players").off("value")
 		}
-
-		gameReady = true
 	})
 }
 
@@ -97,9 +92,10 @@ function receiveOpponent() {
  * Activer l'écouteur des mouvements
  */
 function receiveMoves() {
-	db.ref("games").child(gameKey).child("moves").on("value", snapshot => {
+	db.ref("games").child(gameKey).child("moves").on("child_added", snapshot => {
 		if (!snapshot.val()) return;
-		let move = Object.values(snapshot.val())[Object.values(snapshot.val()).length - 1]
+
+		let move = snapshot.val()
 		getData(move["from"], move["to"], move["castle"], move["promotion"], move["enpassant"])
 	})
 }
@@ -109,10 +105,25 @@ function receiveMoves() {
  */
 function receiveActions() {
 	db.ref("games").child(gameKey).child("actions").on("value", snapshot => {
-		console.log(snapshot.val())
 		if (!snapshot.val()) return;
-		let action = Object.values(snapshot.val())[Object.values(snapshot.val()).length - 1]
 
+		let value = snapshot.val()
+
+		if (value["abandon"]) {
+			stopGame(2, value["abandon"] == pseudo ? Object.keys(players)[Object.keys(players).indexOf(pseudo) * -1 + 1] : pseudo)
+		} else if (value["nulle"] !== undefined) {
+			if (typeof value["nulle"] == "string") {
+				db.ref("games").child(gameKey).child("actions").child("nulle").set(confirm(value["confirm"] + askDrawMessage))
+			} else if (typeof value["nulle"] == "boolean") {
+				if (value["nulle"]) {
+					stopGame(1)
+				} else {
+					if (pseudo == value["nulle"]) {
+						alert("Nulle refusée")
+					}
+				}
+			}
+		}
 	})
 }
 
@@ -157,7 +168,6 @@ function resetAll() {
 	game = getPositionFromPieces(offPieces)
 	pieces = offPieces.map(p => Object.assign({}, p))
 
-	data = null
 	mode = -1
 	pat = false
 	mat = false
@@ -165,10 +175,8 @@ function resetAll() {
 	gameReady = false
 	lastMoveForward = false
 	gameKey = new String()
-	game = new Array()
 	eaten = new Array()
-	pieces = new Array()
-	lastCheck = new Array()
+	lastMoves = new Array()
 	logs = new Object()
 	selected = new Object()
 	players = new Object()
@@ -195,16 +203,17 @@ function connect(type) {
 	if (mode == -1) {
 		clearLogs()
 
-		if (type == 2 && data) {
-			let keys = Object.keys(data["games"])
+		if (type == 2 && db.ref("games")) {
+			db.ref("games").once("value", snapshot => {
+				for (let key in snapshot.val()) {
+					if (Object.keys(snapshot.val()[key]["players"]).length == 1) {
+						return gotoGame(key)
+					}
+				}
 
-			if (keys.length != 0 || Object.keys(data.child(keys[keys.length - 1]).child("players")).length == 1) {
-				gotoGame(keys[keys.length - 1])
-				return
-			}
-		}
-
-		startGame(type)
+				startGame(type)
+			})
+		} else startGame(type)
 	} else alert("Une partie est déjà en cours !")
 }
 
@@ -253,6 +262,7 @@ function startGame(type) {
 			update(color, true)
 			receiveOpponent()
 			receiveMoves()
+			receiveActions()
 			break
 	}
 }
@@ -260,10 +270,10 @@ function startGame(type) {
 /**
  * Terminer une partie
  * @param {number} result Type de fin de partie (nul, mat, abandon)
+ * @param {string=} winner Vainqueur de la partie
  */
-function stopGame(result) {
+function stopGame(result, winner = Object.keys(players).find(player => turns["current"] != turns[players[player].charAt(0)])) {
 	if (result == 1 || result == 2) {
-		let winner = Object.keys(players).find(player => turns["current"] != turns[players[player]])
 		alert(winner + " a gagné par " + (result == 1 ? "mat" : "abandon") + " !")
 	} else if (result == 0) {
 		alert("Egalité !")
@@ -278,6 +288,11 @@ function stopGame(result) {
 		}
 	}
 
+	if (mode == 2) {
+		db.ref("games").child(gameKey).child("moves").off("child_added")
+		db.ref("games").child(gameKey).child("actions").off("value")
+	}
+
 	resetAll()
 }
 
@@ -286,19 +301,24 @@ function stopGame(result) {
  * @param {string} id Clé de partie
  */
 function gotoGame(id) {
-	let game = data["games"][id]
-	let color = game["players"][Object.keys(game["players"])[0]] == "white" ? "black" : "white"
-	let currentData = new Object()
-	currentData[pseudo] = color
-	db.ref("games").child(id).child("players").update(currentData)
+	db.ref("games").child(id).once("value", snapshot => {
+		let game = snapshot.val()
+		let color = game["players"][Object.keys(game["players"])[0]] == "white" ? "black" : "white"
+		let currentData = new Object()
+		currentData[pseudo] = color
+		players = Object.assign({}, snapshot.val()["players"], currentData)
+		players[Object.keys(game["players"])[0]] = (color == "white" ? "black" : "white")
+		db.ref("games").child(id).child("players").update(currentData)
 
-	document.getElementById("opponent").innerText = Object.keys(game["players"])[0]
+		document.getElementById("opponent").innerText = Object.keys(game["players"])[0]
 
-	gameKey = id
-	gameReady = true
-	mode = 2
-	update(color, true)
-	receiveMoves()
+		gameKey = id
+		gameReady = true
+		mode = 2
+		update(color, true)
+		receiveMoves()
+		receiveActions()
+	})
 }
 
 /**
@@ -369,6 +389,7 @@ function getData(from, to, castle, promotion, enpassant) {
 
 	if (from["piece"].charAt(0) == "b") turns["move"]++
 
+	lastMoves = [Object.assign({}, from), Object.assign({}, to)]
 	selected = new Object()
 	update()
 }
@@ -380,18 +401,28 @@ function askDraw() {
 	if (mode == 0) {
 		if (confirm((turns["current"] == 1
 			? pseudo
-			: document.getElementById("opponent").innerText) + " demande la nulle. Accepter ?")) {
+			: document.getElementById("opponent").innerText) + askDrawMessage)) {
 			stopGame(0)
 		} else {
 			alert("Nulle refusée")
 		}
-	}
+	} else if (mode == 2) {
+		db.ref("games").child(gameKey).child("actions").update({
+			"nulle": pseudo
+		})
+	} else throw new Error("Aucune partie en cours")
 }
 
 /**
  * Abandonner
  */
-const resign = () => stopGame(2)
+function resign() {
+	if (mode == 2) {
+		db.ref("games").child(gameKey).child("actions").update({
+			"abandon": pseudo
+		})
+	} else stopGame(2)
+}
 
 /**
  * Trouver un coup
@@ -562,7 +593,7 @@ function init() {
 	for (let i = 0; i < 8; i++) {
 		game.push(new Array())
 
-		for (let j = 0 + i % 2; j < 8 + i % 2; j++) {
+		for (let j = i % 2; j < 8 + i % 2; j++) {
 			let pushed = {
 				color: (j % 2 == 0 ? "#fafafa" : "#755d4f"),
 				// color: (j % 2 == 0 ? "#fafafa" : "#564439")
@@ -666,6 +697,24 @@ function init() {
 			cell.onclick = () => onClicked(pushed["id"])
 			cell.draggable = false
 
+			if (j == i % 2) {
+				let aff = document.createElement("label")
+				aff.className = "aff"
+				aff.left = "0px"
+				aff.top = "0px"
+				aff.innerText = y[i]
+				cell.appendChild(aff)
+			}
+
+			if (i == 7) {
+				let aff = document.createElement("label")
+				aff.className = "aff"
+				aff.right = "0px"
+				aff.bottom = "0px"
+				aff.innerText = x[j - (i % 2)]
+				cell.appendChild(aff)
+			}
+
 			document.getElementById("board").appendChild(cell)
 
 			id++
@@ -690,7 +739,7 @@ function init() {
 
 	pieces = offPieces.map(p => Object.assign({}, p))
 
-	update()
+	update("white")
 }
 
 init()
@@ -728,7 +777,9 @@ function getPositionFromPieces(all) {
  * @param {string=} side Définir un sens à mettre à jour
  * @param {boolean=} init Initialiser un terrain ou non
  */
-function update(side = "white", init = false) {
+function update(side = players[pseudo], init = false) {
+	hideMoves()
+
 	if (!init) {
 		turns["current"] *= -1
 	} else {
@@ -738,24 +789,37 @@ function update(side = "white", init = false) {
 
 	for (let y in game) {
 		for (let x in game[y]) {
-			document.getElementById(game[y][x]["id"].toString()).style.backgroundImage = (game[y][x]["piece"] ? "url('../assets/chess/" + game[y][x]["piece"] + ".png')" : null)
+			let div = document.getElementById(game[y][x]["id"].toString())
+			div.style.backgroundImage = (game[y][x]["piece"] ? "url('../assets/chess/" + game[y][x]["piece"] + ".png')" : null)
 
 			if (game[y][x]["piece"] && turns["current"] == turns[game[y][x]["piece"].charAt(0)]) {
 				if (mode == 0 || (mode == 2
-					&& data["games"][gameKey]["players"][pseudo].charAt(0) == game[y][x]["piece"].charAt(0))) {
-						document.getElementById(game[y][x]["id"]).draggable = true
+					&& players[pseudo].charAt(0) == game[y][x]["piece"].charAt(0))) {
+						div.draggable = true
 					}
 			} else {
-				document.getElementById(game[y][x]["id"]).draggable = false
+				div.draggable = false
 			}
 
-			if (side == "black" || side == "b") document.getElementById(game[y][x]["id"]).style.transform = "scaleY(-1) scaleX(-1)"
+			if (side == "black") div.style.transform = "scaleY(-1) scaleX(-1)"
+			if (side == "white" && div.style.transform == "scaleY(-1) scaleX(-1)") div.style.transform = ""
+			div.style.border = "0"
+
+			if (lastMoves[0] && lastMoves[0]["id"] == div["id"]) {
+				div.style.backgroundColor = "#e3c57888"
+			} else if (lastMoves[1] && lastMoves[1]["id"] == div["id"]) {
+				div.style.backgroundColor = "#ffe7ab88"
+			} else {
+				div.style.backgroundColor = ""
+			}
 		}
 	}
 
-	hideMoves()
-
 	if (!init) {
+		for (let king of isCheck()) {
+			document.getElementById(king["id"]).style.border = "5px solid red"
+		}
+
 		if (pat) {
 			stopGame(0)
 		} else if (mat) {
@@ -763,7 +827,8 @@ function update(side = "white", init = false) {
 		}
 	}
 
-	if (side == "black" || side == "b") document.getElementById("board").style.transform = "scaleY(-1) scaleX(-1)"
+	if (side == "black") document.getElementById("board").style.transform = "scaleY(-1) scaleX(-1)"
+	if (side == "white" && document.getElementById("board").style.transform == "scaleY(-1) scaleX(-1)") document.getElementById("board").style.transform = ""
 }
 
 /**
@@ -780,13 +845,8 @@ function onClicked(id, dropped = false) {
 	let coords = getCoords(id)
 	let cell = game[coords["y"]][coords["x"]]
 
-	if (mode == -1 || ended || (mode == 2 && !gameReady)) return;
-
-	if (cell["piece"]) {
-		if ((mode == 2
-			&& Object.keys(selected).length == 0
-			&& data["games"][gameKey]["players"][pseudo].charAt(0) != cell["piece"].charAt(0))) return;
-	}
+	if ((mode == -1 || ended || (mode == 2 && !gameReady))
+		|| (mode == 2 && turns[players[pseudo].charAt(0)] != turns["current"])) return;
 
 	let previous = Object.assign({}, selected)
 	let nextious = Object.assign({}, cell)
@@ -801,6 +861,7 @@ function onClicked(id, dropped = false) {
 
 			if (previous["piece"].charAt(0) == "b") turns["move"]++
 
+			lastMoves = [previous, nextious]
 			selected = new Object()
 
 			update()
@@ -816,6 +877,7 @@ function onClicked(id, dropped = false) {
 			} else {
 				if (previous["piece"].charAt(0) == "b") turns["move"]++
 
+				lastMoves = [previous, nextious]
 				selected = new Object()
 
 				update()
@@ -858,7 +920,6 @@ function onDrop(event) {
  */
 function onDragOver(event) {
 	event.preventDefault()
-	event.dataTransfer.dropEffect = "move"
 }
 
 /**
@@ -894,7 +955,6 @@ function showMoves(cell) {
 			element.style.backgroundImage = movePath
 		} else {
 			let coords = getCoords(id)
-			element.style.boxSizing = "border-box"
 
 			if (game[coords["y"]][coords["x"]]["piece"].charAt(0) != cell["piece"].charAt(0)) {
 				element.style.border = "5px solid " + moveColor
@@ -919,7 +979,7 @@ function hideMoves() {
 			element.style.backgroundImage = cell["piece"] ? "url('../assets/chess/" + cell["piece"] + ".png')" : null
 		}
 
-		element.style.border = "0"
+		if (element.style.borderColor != "red") element.style.border = "0"
 	}
 }
 
@@ -1334,7 +1394,7 @@ function setMove(from, to) {
 		if (lastLogsArray && lastLogsArray.length != 0) {
 			let lastLog = lastLogsArray[lastLogsArray.length - 1]
 
-			if (lastLog.charAt(lastLog.length - 1) == y[fromCoords["y"]] && from["piece"].slice(1) == "pawn" && game[coords["y"] + turns[from["piece"].charAt(0)]][coords["x"]]["piece"].slice(1) == "pawn" && x.indexOf(lastLog.charAt(0)) - x.indexOf(x[coords["x"]]) == 0) {
+			if (lastLog.charAt(lastLog.length - 1) == y[fromCoords["y"]] && from["piece"].slice(1) == "pawn" && game[coords["y"] + turns[from["piece"].charAt(0)]][coords["x"]]["piece"] && game[coords["y"] + turns[from["piece"].charAt(0)]][coords["x"]]["piece"].slice(1) == "pawn" && x.indexOf(lastLog.charAt(0)) - x.indexOf(x[coords["x"]]) == 0 && lastMoveForward) {
 				setEnPassant(from, to)
 				enpassant = true
 			}
@@ -1347,6 +1407,9 @@ function setMove(from, to) {
 		pieces.splice(pieces.indexOf(pieces.find(e => e["id"] == from["id"])), 1)
 		pieces.push(projected)
 
+		let inOffPieces = offPieces.find(p => p["id"] == from["id"])
+		if (!inOffPieces["piece"]) offPieces[offPieces.indexOf(inOffPieces)] = Object.assign({}, from)
+
 		let checks = isCheck(projected, from)
 
 		if (checks.length != 0 && checks.some(e => e["piece"] == from["piece"].charAt(0) + "king")) {
@@ -1356,7 +1419,7 @@ function setMove(from, to) {
 
 			if (from["piece"].slice(1) == "pawn" && ((Math.floor(to["id"] / game.length) == 0 && from["piece"].charAt(0) == "w") || (Math.floor(to["id"] / game.length) == 7 && from["piece"].charAt(0) == "b"))) {
 				setPromotion(projected).then(res => {
-					if (mode != 2) setLogs(savedFrom, savedTo, false, res.slice(1))
+					if (mode != 2) setLogs(savedFrom, savedTo, false, res)
 					game[fromCoords["y"]][fromCoords["x"]]["piece"] = false
 					return resolve(res)
 				}).catch(err => {
