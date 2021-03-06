@@ -71,7 +71,7 @@ function setTheme(select) {
 }
 
 /**
- * Activer l'écouteur des adversaires
+ * Activer l'écouteur d'adversaire
  */
 function receiveOpponent() {
 	db.ref("games").child(gameKey).child("players").on("value", snapshot => {
@@ -89,7 +89,7 @@ function receiveOpponent() {
 }
 
 /**
- * Activer l'écouteur des mouvements
+ * Activer l'écouteur de mouvements
  */
 function receiveMoves() {
 	db.ref("games").child(gameKey).child("moves").on("child_added", snapshot => {
@@ -101,7 +101,7 @@ function receiveMoves() {
 }
 
 /**
- * Activer l'écouteur des actions
+ * Activer l'écouteur d'actions
  */
 function receiveActions() {
 	db.ref("games").child(gameKey).child("actions").on("value", snapshot => {
@@ -112,19 +112,31 @@ function receiveActions() {
 		if (value["abandon"]) {
 			stopGame(2, value["abandon"] == pseudo ? Object.keys(players)[Object.keys(players).indexOf(pseudo) * -1 + 1] : pseudo)
 		} else if (value["nulle"] !== undefined) {
+			console.log(value["nulle"], typeof value["nulle"])
 			if (typeof value["nulle"] == "string") {
-				db.ref("games").child(gameKey).child("actions").child("nulle").set(confirm(value["confirm"] + askDrawMessage))
-			} else if (typeof value["nulle"] == "boolean") {
-				if (value["nulle"]) {
-					stopGame(1)
+				if (value["nulle"] != pseudo) {
+					db.ref("games").child(gameKey).child("actions").child("nulle").set(confirm(value["nulle"] + askDrawMessage))
 				} else {
-					if (pseudo == value["nulle"]) {
-						alert("Nulle refusée")
-					}
+					document.body.className = "waiting"
+				}
+			} else if (typeof value["nulle"] == "boolean") {
+				document.body.className = ""
+
+				if (value["nulle"]) {
+					stopGame(0)
+				} else {
+					alert("Nulle refusée")
 				}
 			}
 		}
 	})
+}
+
+/**
+ * Activer l'écouteur de messages
+ */
+function receiveMessages() {
+
 }
 
 // Afin d'optimiser, essayer de réduire au maximum les boucles (par exemple, dans le check du setMove, on n'a besoin que des pièces de l'adversaire)
@@ -421,7 +433,7 @@ function resign() {
 		db.ref("games").child(gameKey).child("actions").update({
 			"abandon": pseudo
 		})
-	} else stopGame(2)
+	} else stopGame(2, Object.keys(players).find(p => turns["current"] != turns[players[p].charAt(0)]))
 }
 
 /**
