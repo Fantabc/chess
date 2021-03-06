@@ -1,13 +1,12 @@
 # Chess
 
 ### Fonctionnalités terminées :
-* Jeu local / amical
+* Jeu local
 * Jeu en ligne
 
 ### TODO :
 * Bot (Alpha-Beta Pruning)
 * Chat en ligne
-* Nulle et abandon
 * Editeur de positions
 * Optimisation
 
