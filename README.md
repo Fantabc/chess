@@ -1,19 +1,9 @@
 # Chess
 
-### Fonctionnalités terminées :
+### Disponibles :
 * Jeu local
+* Jeu solo
 * Jeu en ligne
-
-### TODO :
-* Bot (Alpha-Beta Pruning)
-* Chat en ligne
 * Editeur de positions
-* Optimisation
 
-### Options envisageables :
-* Comptes joueurs
-  * Invité
-  * Authentifié
-* Système de stats
-* Système pour progresser / apprendre
-* (Eventuellement utiliser des class)
+N.B. : Le fichier de configuration de la base de données ayant été retiré, il est impossible de jouer en ligne. On peut cependant lancer le jeu en retirant le lien vers config.js dans la page HTML, en retirant la première ligne dans chess.js.
