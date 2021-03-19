@@ -10,14 +10,14 @@
     </head>
 
     <body class="waiting">
-        <div class="verti">
+        <div id="header"><a onclick="window.open('https://www.fide.com/FIDE/handbook/LawsOfChess.pdf')">Laws of Chess (anglais)</a><a onclick="dismissHeader()" class="dismiss">+</a></div>
+        <div class="verti left">
             <b><label id="opponent">Adversaire en attente...</label></b>
-            <div id="board"></div>
+            <div id="board" onmousedown="onMouseDown(event)" oncontextmenu="return false;"></div>
             <b><label id="player">Vous</label></b>
         </div>
-        <div class="divider"></div>
         <div id="side">
-            <div class="hori">
+            <div class="hori marginb">
                 <table class="column" id="infos">
                     <tr>
                         <th>Trait</th>
@@ -25,9 +25,22 @@
                         <th>Noir</th>
                     </tr>
                 </table>
-                <div class="divider"></div>
+				<div id="editor" class="verti">
+					<img src="../assets/chess/bking.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/bqueen.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/brook.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/bbishop.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/bknight.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/bpawn.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wking.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wqueen.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wrook.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wbishop.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wknight.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+					<img src="../assets/chess/wpawn.png" draggable="true" ondragstart="onDragStart(event)" ondrop="onDrop(event)">
+				</div>
                 <div class="verti">
-                    <table class="column" id="pieces">
+                    <table class="column marginb" id="pieces">
                         <tr>
                             <th id="whiteHeader">Blanc</th>
                             <td class="tdp" id="white"></td>
@@ -37,40 +50,42 @@
                             <td class="tdp" id="black"></td>
                         </tr>
                     </table>
-                    <div class="divider"></div>
-                    <select id="themes" onchange="setTheme(this)">
+                    <select class="marginb" id="themes" onchange="setTheme(this)">
                         <option value="classic" selected>Classique</option>
                         <option value="ocean">Océan</option>
                         <option value="nature">Nature</option>
                         <option value="volcan">Volcan</option>
                     </select>
+					<div class="container">
+						<div id="messages" class="marginb"></div>
+						<div class="controllers">
+							<input id="content" placeholder="Message..." type="text" disabled="true">
+							<input type="submit" value="Envoyer" onclick="sendMessage()">
+						</div>
+					</div>
                 </div>
             </div>
-            <div class="divider"></div>
             <div id="types" class="types">
-                <input class="idle" type="submit" value="Partie amicale" onclick="connect(0)" />
-                <input class="idle" type="submit" value="Partie solo" onclick="connect(1)" />
-                <input class="idle" type="submit" value="Partie en ligne" onclick="connect(2)" />
-                <input class="play" id="nobot" type="submit" value="Nulle" onclick="askDraw()" />
-                <input class="play" type="submit" value="Abandonner" onclick="resign()" />
+                <input class="idle" type="submit" value="Partie locale" onclick="connect(0)">
+                <input class="idle" type="submit" value="Partie solo" onclick="connect(1)">
+                <input class="idle" type="submit" value="Partie en ligne" onclick="connect(2)">
+                <input class="idle" type="submit" value="Editeur de position" onclick="launchEditor()">
+                <input class="play" type="submit" value="Tourner" onclick="update((document.getElementById('board').style.transform == 'scaleY(-1) scaleX(-1)' ? 'white' : 'black'), false, true)">
+                <input class="play" id="nobot" type="submit" value="Nulle" onclick="askDraw()">
+                <input class="play" type="submit" value="Abandonner" onclick="resign()">
+                <input class="editor" type="submit" value="Tourner" onclick="update(document.getElementById('board').style.transform == 'scaleY(-1) scaleX(-1)' ? 'white' : 'black')">
+                <input class="editor" type="submit" value="Evaluer" onclick="alert(evalPosition(pieces))">
+				<input class="editor" type="submit" value="Réinitialiser" onclick="resetEditor()">
+				<input class="editor" type="submit" value="Quitter" onclick="leaveEditor()">
             </div>
         </div>
 
-        <!-- The core Firebase JS SDK is always required and must be listed first -->
         <script src="https://www.gstatic.com/firebasejs/8.2.6/firebase-app.js"></script>
         <script src="https://www.gstatic.com/firebasejs/8.2.6/firebase-database.js"></script>
 
-        <!-- TODO: Add SDKs for Firebase products that you want to use
-            https://firebase.google.com/docs/web/setup#available-libraries -->
+        <!-- https://firebase.google.com/docs/web/setup#available-libraries -->
 
-        <script>
-            var firebaseConfig = {
-                // Keys
-            };
-
-            firebase.initializeApp(firebaseConfig);
-        </script>
-
+        <script src="../script/config.js"></script>
         <script src="../script/chess.js"></script>
     </body>
 </html>
