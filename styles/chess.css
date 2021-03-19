@@ -2,11 +2,38 @@ body {
     background-image: url("../assets/wallpapers/wallpaper.jpg");
     background-repeat: no-repeat;
     background-size: cover;
-    margin: 10px;
     display: flex;
     justify-content: center;
     align-items: center;
-	font-family: "Gill Sans", sans-serif
+    height: 90vh;
+    font-family: "Gill Sans", sans-serif;
+}
+
+#header {
+    background-color: #fc8c03;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    padding: 5px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    font-size: 15px;
+}
+
+.dismiss {
+    position: absolute;
+    right: 15px;
+    opacity: 0.4;
+    transform: rotate(45deg);
+}
+
+.dismiss:hover {
+    opacity: 1;
+}
+
+#header > *:hover {
+    cursor: pointer;
 }
 
 .waiting {
@@ -20,6 +47,13 @@ label {
 	font-size: 20px;
 }
 
+.aff {
+	color: #404040;
+	font-size: 12px;
+	margin: 2px;
+	position: absolute;
+}
+
 /* Plateau de jeu */
 
 #board {
@@ -31,21 +65,16 @@ label {
 }
 
 #player {
-    float: right;
+	float: right;
 }
 
 /* Informations sur le côté */
-
-.column {
-    float: left;
-}
 
 #side {
     background-color: #e0e0e0;
     display: flex;
     flex-direction: column;
-    float: left;
-    height: 80vh;
+    height: 72vh;
     padding: 10px;
 }
 
@@ -60,19 +89,39 @@ label {
     flex-direction: column;
 }
 
-.types > input {
-    float: left;
-    width: 50%;
-    height: 5vh;
+.left {
+	margin-right: 10px;
+}
+
+.marginb {
+	margin-bottom: 10px;
 }
 
 #infos {
     display: block;
     overflow-y: scroll;
+    margin-right: 10px;
+}
+
+#editor {
+	display: none;
+	margin: auto;
+	margin-right: 10px;
+	overflow: auto;
+	height: 100%;
+}
+
+#editor > * {
+	height: auto;
+	width: auto;
+}
+
+#editor > *:hover {
+	cursor: grab;
 }
 
 .tdp {
-    width: 10vw;
+    width: 15vw;
 }
 
 table, th, td {
@@ -84,10 +133,44 @@ th {
     padding: 15px;
 }
 
-.divider {
-    width: 10px;
-    height: 10px;
-    float: left;
+td {
+    background-color: #eeeeee;
+}
+
+/* Messages */
+
+.message {
+	font-size: 14px;
+	color: black;
+	margin: 2px;
+}
+
+.message:hover {
+	cursor: text;
+}
+
+.container {
+	height: 100%;
+	display: flex;
+    flex-direction: column;
+}
+
+#messages {
+	height: 100%;
+	border: 1px solid #000000;
+	display: flex;
+	flex-direction: column;
+    justify-content: flex-end;
+    background-color: #eeeeee;
+}
+
+.controllers {
+	display: flex;
+	flex-direction: row;
+}
+
+#content {
+	width: 100%;
 }
 
 /* Gérer les parties */
@@ -97,12 +180,21 @@ th {
     flex-direction: row;
 }
 
+.types > * {
+    width: 50%;
+    height: 5vh;
+}
+
 .idle {
-    display: block;
+    display: inline-block;
 }
 
 .play {
     display: none;
+}
+
+.editor {
+	display: none;
 }
 
 /* Cases */
@@ -113,15 +205,10 @@ th {
     background-repeat: no-repeat;
     background-origin: content-box;
     background-position: center;
-    height: 10vh;
-    width: 10vh;
-}
-
-.dragging {
-	cursor: move !important;
-	cursor: -webkit-grabbing !important;
-	cursor: -moz-grabbing !important;
-	cursor: grabbing !important;
+    height: 9vh;
+    width: 9vh;
+	position: relative;
+	box-sizing: border-box;
 }
 
 .white {
